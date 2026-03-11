@@ -9,24 +9,19 @@ PARKING_ID     = "80"
 
 URL = "https://parking.mos.ru/parking/barrier/subscribe/"
 
-def check_month(page, radio_id, month_name):
-    # Перезагружаем страницу для чистого состояния
+def check_next_month(page):
     page.goto(URL, wait_until="domcontentloaded", timeout=60000)
     page.wait_for_timeout(5000)
 
-    # Кликаем на нужный месяц
-    page.evaluate(f"""
-        let el = document.getElementById('{radio_id}');
+    page.evaluate("""
+        let el = document.getElementById('parking-barries-checkbox2');
         if (el) el.click();
-        else throw new Error('Элемент {radio_id} не найден');
     """)
     page.wait_for_timeout(2000)
 
-    # Кликаем на Юго-Восточный округ
     page.evaluate("""
         let item = document.querySelector('div[data-value="0500"]');
         if (item) item.click();
-        else throw new Error('Округ не найден');
     """)
     page.wait_for_timeout(5000)
 
@@ -34,7 +29,7 @@ def check_month(page, radio_id, month_name):
     soup = BeautifulSoup(content, "html.parser")
     item = soup.find("div", attrs={"data-value": PARKING_ID})
     if item is None:
-        raise ValueError(f"Парковка {PARKING_ID} не найдена ({month_name})")
+        raise ValueError(f"Парковка {PARKING_ID} не найдена")
     return "disabledVar" not in item.get("class", [])
 
 def send_telegram(msg):
@@ -48,23 +43,14 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-
-        next_month = check_month(page, "parking-barries-checkbox2", "следующий месяц")
-        curr_month = check_month(page, "parking-barries-checkbox1", "текущий месяц")
-
+        next_month = check_next_month(page)
         browser.close()
 
-    print(f"Следующий: {'✅' if next_month else '❌'} | Текущий: {'✅' if curr_month else '❌'}")
+    print(f"Следующий месяц: {'✅ есть место' if next_month else '❌ нет мест'}")
 
     if next_month:
         send_telegram(
             "🚗 <b>Место появилось на СЛЕДУЮЩИЙ месяц!</b>\n"
-            "📍 г. Москва, ул. Донецкая, влд. 34\n"
-            "👉 https://parking.mos.ru/parking/barrier/subscribe/"
-        )
-    if curr_month:
-        send_telegram(
-            "🚗 <b>Место появилось на ТЕКУЩИЙ месяц!</b>\n"
             "📍 г. Москва, ул. Донецкая, влд. 34\n"
             "👉 https://parking.mos.ru/parking/barrier/subscribe/"
         )
