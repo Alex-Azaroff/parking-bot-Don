@@ -10,15 +10,26 @@ PARKING_ID     = "80"
 URL = "https://parking.mos.ru/parking/barrier/subscribe/"
 
 def check_month(page, radio_id, month_name):
+    # Перезагружаем страницу для чистого состояния
+    page.goto(URL, wait_until="domcontentloaded", timeout=60000)
+    page.wait_for_timeout(5000)
+
+    # Кликаем на нужный месяц
     page.evaluate(f"""
-        document.getElementById('{radio_id}').click();
+        let el = document.getElementById('{radio_id}');
+        if (el) el.click();
+        else throw new Error('Элемент {radio_id} не найден');
     """)
     page.wait_for_timeout(2000)
+
+    # Кликаем на Юго-Восточный округ
     page.evaluate("""
         let item = document.querySelector('div[data-value="0500"]');
         if (item) item.click();
+        else throw new Error('Округ не найден');
     """)
     page.wait_for_timeout(5000)
+
     content = page.content()
     soup = BeautifulSoup(content, "html.parser")
     item = soup.find("div", attrs={"data-value": PARKING_ID})
@@ -37,11 +48,10 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        page.goto(URL, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(5000)
 
         next_month = check_month(page, "parking-barries-checkbox2", "следующий месяц")
         curr_month = check_month(page, "parking-barries-checkbox1", "текущий месяц")
+
         browser.close()
 
     print(f"Следующий: {'✅' if next_month else '❌'} | Текущий: {'✅' if curr_month else '❌'}")
